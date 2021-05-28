@@ -21,7 +21,10 @@
 ############################################################################
 
 
-cmake_minimum_required(VERSION 3.1)
+# CMake 3.13 required for new Flexisip build process.
+# See [CMP077](https://cmake.org/cmake/help/v3.13/policy/CMP0077.html).
+cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
+
 project(belle-sip VERSION 4.5.0 LANGUAGES C CXX)
 
 set(PACKAGE "${PROJECT_NAME}")
@@ -89,7 +92,9 @@ if(ENABLE_RTP_MAP_ALWAYS_IN_SDP)
 	set(BELLE_SDP_FORCE_RTP_MAP 1)
 endif()
 
-find_package(bctoolbox 0.5.0 REQUIRED OPTIONAL_COMPONENTS tester)
+if(NOT DISABLE_BC_PACKAGE_SEARCH)
+	find_package(bctoolbox 0.5.0 REQUIRED OPTIONAL_COMPONENTS tester)
+endif()
 
 if(ENABLE_TUNNEL)
 	if(LINPHONE_BUILDER_GROUP_EXTERNAL_SOURCE_PATH_BUILDERS)
@@ -249,10 +254,6 @@ write_basic_package_version_file(
 	"${CMAKE_CURRENT_BINARY_DIR}/BelleSIPConfigVersion.cmake"
 	VERSION ${PACKAGE_VERSION}
 	COMPATIBILITY AnyNewerVersion
-)
-
-export(EXPORT ${EXPORT_TARGETS_NAME}Targets
-	FILE "${CMAKE_CURRENT_BINARY_DIR}/BelleSIPTargets.cmake"
 )
 
 configure_package_config_file(cmake/BelleSIPConfig.cmake.in
