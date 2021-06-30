@@ -141,6 +141,8 @@ static int belle_sip_poll(belle_sip_pollfd_t *pfd, int count, int duration){
 	ret=WaitForMultipleObjectsEx(count,pfd,FALSE,duration,FALSE);
 	if (ret==WAIT_FAILED){
 		belle_sip_error("WaitForMultipleObjectsEx() failed.");
+		if (count > MAXIMUM_WAIT_OBJECTS)
+			belle_sip_error("WaitForMultipleObjectsEx() descriptor count exceeded.");
 		return -1;
 	}
 	if (ret==WAIT_TIMEOUT){
@@ -595,6 +597,10 @@ static void belle_sip_main_loop_iterate(belle_sip_main_loop_t *ml){
 				++i;
 			}
 		}
+#ifdef _WIN32
+		if (i >= MAXIMUM_WAIT_OBJECTS)
+			break;
+#endif
 	}
 #ifndef _WIN32
 	pfd[i].fd = ml->control_fds[0];
