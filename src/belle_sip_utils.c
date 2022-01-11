@@ -514,12 +514,13 @@ char* belle_generic_uri_to_escaped_path(const char* buff) {
 }
 
 char* belle_sip_string_to_backslash_less_unescaped_string(const char* buff) {
-	char *output_buff=belle_sip_malloc(strlen(buff)+1);
+	size_t buff_len = strlen(buff);
+	char *output_buff=belle_sip_malloc(buff_len+1);
 	unsigned int i;
 	unsigned int out_buff_index=0;
 
 	for(i=0; buff[i] != '\0'; i++) {
-		if (buff[i] == '\\') {
+		if (buff[i] == '\\' && i + 1 < buff_len ) { /*make sure escaped caracter exist*/
 			i++;/*skip \*/
 		}
 		/*make sure to only remove one \ in case of \\*/
@@ -542,89 +543,4 @@ char* belle_sip_display_name_to_backslashed_escaped_string(const char* buff) {
 	}
 	output_buff[out_buff_index]='\0';
 	return belle_sip_strdup(output_buff);
-}
-
-belle_sip_list_t *belle_sip_parse_directory(const char *path, const char *file_type) {
-	belle_sip_list_t* file_list = NULL;
-#ifdef _WIN32
-	WIN32_FIND_DATA FileData;
-	HANDLE hSearch;
-	BOOL fFinished = FALSE;
-	char szDirPath[1024];
-#ifdef UNICODE
-	wchar_t wszDirPath[1024];
-#endif
-
-	if (file_type == NULL) {
-		file_type = ".*";
-	}
-	snprintf(szDirPath, sizeof(szDirPath), "%s\\*%s", path, file_type);
-#ifdef UNICODE
-	mbstowcs(wszDirPath, szDirPath, sizeof(wszDirPath));
-	hSearch = FindFirstFileExW(wszDirPath, FindExInfoStandard, &FileData, FindExSearchNameMatch, NULL, 0);
-#else
-	hSearch = FindFirstFileExA(szDirPath, FindExInfoStandard, &FileData, FindExSearchNameMatch, NULL, 0);
-#endif
-	if (hSearch == INVALID_HANDLE_VALUE) {
-		belle_sip_message("No file (*%s) found in [%s] [%d].", file_type, szDirPath, (int)GetLastError());
-		return NULL;
-	}
-	snprintf(szDirPath, sizeof(szDirPath), "%s", path);
-	while (!fFinished) {
-		char szFilePath[1024];
-#ifdef UNICODE
-		char filename[512];
-		wcstombs(filename, FileData.cFileName, sizeof(filename));
-		snprintf(szFilePath, sizeof(szFilePath), "%s\\%s", szDirPath, filename);
-#else
-		snprintf(szFilePath, sizeof(szFilePath), "%s\\%s", szDirPath, FileData.cFileName);
-#endif
-		file_list = belle_sip_list_append(file_list, belle_sip_strdup(szFilePath));
-		if (!FindNextFile(hSearch, &FileData)) {
-			if (GetLastError() == ERROR_NO_MORE_FILES) {
-				fFinished = TRUE;
-			}
-			else {
-				belle_sip_error("Couldn't find next (*%s) file.", file_type);
-				fFinished = TRUE;
-			}
-		}
-	}
-	/* Close the search handle. */
-	FindClose(hSearch);
-#else
-	DIR *dir;
-	struct dirent *ent;
-
-	if ((dir = opendir(path)) == NULL) {
-		belle_sip_error("Could't open [%s] directory.", path);
-		return NULL;
-	}
-
-	/* loop on all directory files */
-	errno = 0;
-	ent = readdir(dir);
-	while (ent != NULL) {
-		/* filter on file type if given */
-		if (file_type==NULL
-			|| (strncmp(ent->d_name+strlen(ent->d_name)-strlen(file_type), file_type, strlen(file_type))==0) ) {
-			char *name_with_path=belle_sip_strdup_printf("%s/%s",path,ent->d_name);
-			file_list = belle_sip_list_append(file_list, name_with_path);
-		}
-		ent = readdir(dir);
-	}
-	if (errno != 0) {
-		belle_sip_error("Error while reading the [%s] directory: %s.", path, strerror(errno));
-	}
-	closedir(dir);
-#endif
-	return file_list;
-}
-
-int belle_sip_mkdir(const char *path) {
-#ifdef _WIN32
-	return _mkdir(path);
-#else
-	return mkdir(path, 0700);
-#endif
 }

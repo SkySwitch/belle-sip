@@ -64,6 +64,36 @@ BELLESIP_EXPORT void belle_sdp_raw_attribute_set_name(belle_sdp_raw_attribute_t*
 #define BELLE_SDP_RAW_ATTRIBUTE(t) BELLE_SDP_CAST(t,belle_sdp_raw_attribute_t)
 
 /***************************************************************************************
+ * RFC4574 Attributes
+ *
+ **************************************************************************************/
+
+// label
+
+typedef struct _belle_sdp_label_attribute belle_sdp_label_attribute_t;
+BELLESIP_EXPORT belle_sdp_label_attribute_t* belle_sdp_label_attribute_new(void);
+BELLESIP_EXPORT belle_sdp_label_attribute_t* belle_sdp_label_attribute_parse(const char* attribute);
+BELLESIP_EXPORT belle_sdp_label_attribute_t* belle_sdp_label_attribute_create(void);
+BELLESIP_EXPORT const char* belle_sdp_label_attribute_get_pointer(const belle_sdp_label_attribute_t* attribute);
+BELLESIP_EXPORT void belle_sdp_label_attribute_set_pointer(belle_sdp_label_attribute_t* attribute, const char* pointer);
+#define BELLE_SDP_LABEL_ATTRIBUTE(t) BELLE_SDP_CAST(t,belle_sdp_label_attribute_t)
+
+/***************************************************************************************
+ * RFC4796 Attributes
+ *
+ **************************************************************************************/
+
+// content
+
+typedef struct _belle_sdp_content_attribute belle_sdp_content_attribute_t;
+BELLESIP_EXPORT belle_sdp_content_attribute_t* belle_sdp_content_attribute_parse(const char* attribute);
+BELLESIP_EXPORT belle_sdp_content_attribute_t* belle_sdp_content_attribute_new(void);
+BELLESIP_EXPORT belle_sdp_content_attribute_t* belle_sdp_content_attribute_create(void);
+BELLESIP_EXPORT void belle_sdp_content_attribute_add_media_tag(belle_sdp_content_attribute_t* attribute, const char* media_tag);
+BELLESIP_EXPORT belle_sip_list_t* belle_sdp_content_attribute_get_media_tags(belle_sdp_content_attribute_t* attribute);
+#define BELLE_SDP_CONTENT_ATTRIBUTE(t) BELLE_SDP_CAST(t,belle_sdp_content_attribute_t)
+
+/***************************************************************************************
  * RFC5939 Attributes
  *
  **************************************************************************************/
@@ -423,10 +453,10 @@ typedef struct _belle_sdp_time belle_sdp_time_t;
 BELLESIP_EXPORT belle_sdp_time_t* belle_sdp_time_new(void);
 BELLESIP_EXPORT belle_sdp_time_t* belle_sdp_time_parse (const char* time);
 
-BELLESIP_EXPORT int belle_sdp_time_get_start(const belle_sdp_time_t* time);
-BELLESIP_EXPORT int belle_sdp_time_get_stop(const belle_sdp_time_t* time);
-BELLESIP_EXPORT void belle_sdp_time_set_start(belle_sdp_time_t* time, int value);
-BELLESIP_EXPORT void belle_sdp_time_set_stop(belle_sdp_time_t* time, int value);
+BELLESIP_EXPORT long long belle_sdp_time_get_start(const belle_sdp_time_t* time);
+BELLESIP_EXPORT long long belle_sdp_time_get_stop(const belle_sdp_time_t* time);
+BELLESIP_EXPORT void belle_sdp_time_set_start(belle_sdp_time_t* time, long long value);
+BELLESIP_EXPORT void belle_sdp_time_set_stop(belle_sdp_time_t* time, long long value);
 #define BELLE_SDP_TIME(t) BELLE_SDP_CAST(t,belle_sdp_time_t)
 
 /***************************************************************************************
@@ -436,7 +466,7 @@ BELLESIP_EXPORT void belle_sdp_time_set_stop(belle_sdp_time_t* time, int value);
 typedef struct _belle_sdp_time_description belle_sdp_time_description_t;
 BELLESIP_EXPORT belle_sdp_time_description_t* belle_sdp_time_description_new(void);
 BELLESIP_EXPORT belle_sdp_time_description_t* belle_sdp_time_description_parse (const char* time_description);
-BELLESIP_EXPORT belle_sdp_time_description_t* belle_sdp_time_description_create (int start, int stop);
+BELLESIP_EXPORT belle_sdp_time_description_t* belle_sdp_time_description_create (long long start, long long stop);
 
 BELLESIP_EXPORT belle_sip_list_t* belle_sdp_time_description_get_repeate_times(const belle_sdp_time_description_t* time_description);
 BELLESIP_EXPORT belle_sdp_time_t* belle_sdp_time_description_get_time(const belle_sdp_time_description_t* time_description);

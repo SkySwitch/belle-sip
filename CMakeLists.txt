@@ -1,6 +1,5 @@
-
 # CMakeLists.txt
-# Copyright (C) 2010-2019  Belledonne Communications, Grenoble France
+# Copyright (C) 2010-2021  Belledonne Communications, Grenoble France
 #
 ############################################################################
 #
@@ -22,7 +21,14 @@
 
 
 cmake_minimum_required(VERSION 3.1)
-project(belle-sip VERSION 5.1.0 LANGUAGES C CXX)
+
+# CMP0077 policy is required by Flexisip build. Remove it once the CMake required
+# version is higer or equal to 3.13.
+if(NOT CMAKE_VERSION VERSION_LESS 3.13)
+    cmake_policy(SET CMP0077 NEW)
+endif()
+
+project(belle-sip VERSION 5.2.0 LANGUAGES C CXX)
 
 set(PACKAGE "${PROJECT_NAME}")
 set(PACKAGE_NAME "${PROJECT_NAME}")
@@ -43,6 +49,10 @@ option(ENABLE_TUNNEL "Enable tunnel support" OFF)
 option(ENABLE_TESTS "Enable compilation of tests" ON)
 option(ENABLE_MDNS "Enable multicast DNS" OFF)
 option(ENABLE_PACKAGE_SOURCE "Create 'package_source' target for source archive making (CMake >= 3.11)" OFF)
+
+# Hidden non-cache options:
+# * DISABLE_BC_PACKAGE_SEARCH: skip find_package() for every BC package (bctoolbox, ortp, etc.)
+
 
 
 include(CheckLibraryExists)
@@ -85,13 +95,17 @@ find_package(Threads)
 
 find_package(ZLIB)
 
-find_package(belr REQUIRED CONFIG)
+if(NOT DISABLE_BC_PACKAGE_SEARCH)
+	find_package(belr REQUIRED CONFIG)
+endif()
 
 if(ENABLE_RTP_MAP_ALWAYS_IN_SDP)
 	set(BELLE_SDP_FORCE_RTP_MAP 1)
 endif()
 
-find_package(bctoolbox 0.5.0 REQUIRED OPTIONAL_COMPONENTS tester)
+if(NOT DISABLE_BC_PACKAGE_SEARCH)
+	find_package(bctoolbox 0.5.0 REQUIRED OPTIONAL_COMPONENTS tester)
+endif()
 
 if(ENABLE_TUNNEL)
 	if(LINPHONE_BUILDER_GROUP_EXTERNAL_SOURCE_PATH_BUILDERS)
@@ -258,9 +272,11 @@ write_basic_package_version_file(
 	COMPATIBILITY AnyNewerVersion
 )
 
-export(EXPORT ${EXPORT_TARGETS_NAME}Targets
-	FILE "${CMAKE_CURRENT_BINARY_DIR}/BelleSIPTargets.cmake"
-)
+if(LINPHONE_BUILDER_GROUP_EXTERNAL_SOURCE_PATH_BUILDERS)
+	export(EXPORT ${EXPORT_TARGETS_NAME}Targets
+		FILE "${CMAKE_CURRENT_BINARY_DIR}/BelleSIPTargets.cmake"
+	)
+endif()
 
 configure_package_config_file(cmake/BelleSIPConfig.cmake.in
 	"${CMAKE_CURRENT_BINARY_DIR}/BelleSIPConfig.cmake"

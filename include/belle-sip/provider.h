@@ -90,6 +90,17 @@ BELLESIP_EXPORT int belle_sip_provider_add_authorization(belle_sip_provider_t *p
 BELLESIP_EXPORT belle_sip_dialog_t* belle_sip_provider_find_dialog(const belle_sip_provider_t *prov, const char* call_id,const char* local_tag,const char* remote_tag);
 
 /**
+ * Provides access to a specific dialog
+ * @param prov object
+ * @param call_if of the dialog
+ * @param remote_tag of the dialog
+ * @returns dialog that  correspond to these parameters or NULL if not found
+ *
+ **/
+BELLESIP_EXPORT belle_sip_dialog_t* belle_sip_provider_find_dialog_with_remote_tag(const belle_sip_provider_t *prov, const char* call_id,const char* remote_tag);
+
+
+/**
  * Enable rport in via header. Enabled by default
  * @param prov
  * @return enable 0 to disable
@@ -145,6 +156,12 @@ BELLESIP_EXPORT void belle_sip_provider_enable_unconditional_answer(belle_sip_pr
  * @param code 0 to sip response code
  **/
 BELLESIP_EXPORT void belle_sip_provider_set_unconditional_answer(belle_sip_provider_t *prov, unsigned short code);
+
+/**
+ * Check integrity of responses. By default it is true, however for testing purpose it might be useful
+ * to receive and get notified of invalid responses.
+ */
+BELLESIP_EXPORT void belle_sip_provider_enable_response_integrity_checking(belle_sip_provider_t *prov, int value);
 
 /*
  * End of test features.

@@ -287,25 +287,29 @@ static void belle_sip_provider_dispatch_response(belle_sip_provider_t* p, belle_
 }
 
 void belle_sip_provider_dispatch_message(belle_sip_provider_t *prov, belle_sip_message_t *msg){
-
-	if (TRUE
+	int message_integrity_verified = TRUE;
+	
 #ifndef BELLE_SIP_DONT_CHECK_HEADERS_IN_MESSAGE
-			&& belle_sip_message_check_headers(msg)
+	message_integrity_verified = belle_sip_message_check_headers(msg);
 #endif
-	){
-		if (belle_sip_message_is_request(msg)){
-			belle_sip_provider_dispatch_request(prov,(belle_sip_request_t*)msg);
-		}else{
-			belle_sip_provider_dispatch_response(prov,(belle_sip_response_t*)msg);
-		}
-	}else{
-		/* incorrect message received, answer bad request if it was a request.*/
-		if (belle_sip_message_is_request(msg)){
+
+	if (belle_sip_message_is_request(msg)){
+		if (message_integrity_verified) belle_sip_provider_dispatch_request(prov,(belle_sip_request_t*)msg);
+		else{
 			belle_sip_response_t *resp=belle_sip_response_create_from_request(BELLE_SIP_REQUEST(msg),400);
 			if (resp){
 				belle_sip_provider_send_response(prov,resp);
 			}
-		}/*otherwise what can we do ?*/
+		}
+	}else{
+		if (message_integrity_verified){
+			belle_sip_provider_dispatch_response(prov,(belle_sip_response_t*)msg);
+		}else if (!prov->response_integrity_checking_enabled){
+			belle_sip_message("response_integrity_checking is disabled, the response is notified despite it is invalid.");
+			belle_sip_provider_dispatch_response(prov,(belle_sip_response_t*)msg);
+		}else{
+			/* the response will be silently discarded */
+		}
 	}
 	belle_sip_object_unref(msg);
 }
@@ -517,7 +521,10 @@ static void channel_on_sending(belle_sip_channel_listener_t *obj, belle_sip_chan
 	if (belle_sip_message_is_request(msg)){
 		const belle_sip_list_t *rroutes;
 		/*probably better to be in channel*/
-		fix_outgoing_via(prov, chan, msg);
+		if (strcmp("CANCEL",belle_sip_request_get_method(BELLE_SIP_REQUEST(msg))) != 0)
+			fix_outgoing_via(prov, chan, msg);
+			/*else
+			 in case of CANCEL, via header must excatly be equal to INVITE's via header*/
 
 		for (rroutes=belle_sip_message_get_headers(msg,"Record-Route");rroutes!=NULL;rroutes=rroutes->next){
 			belle_sip_header_record_route_t* rr=(belle_sip_header_record_route_t*)rroutes->data;
@@ -567,6 +574,7 @@ belle_sip_provider_t *belle_sip_provider_new(belle_sip_stack_t *s, belle_sip_lis
 	p->stack=s;
 	p->rport_enabled=1;
 	p->unconditional_answer = 480;
+	p->response_integrity_checking_enabled = TRUE;
 	if (lp) belle_sip_provider_add_listening_point(p,lp);
 	return p;
 }
@@ -701,12 +709,11 @@ belle_sip_dialog_t * belle_sip_provider_create_dialog_internal(belle_sip_provide
 	return dialog;
 }
 
-/*find a dialog given the call id, local-tag and to-tag*/
-belle_sip_dialog_t* belle_sip_provider_find_dialog(const belle_sip_provider_t *prov, const char* call_id, const char* local_tag, const char* remote_tag) {
+static belle_sip_dialog_t* _belle_sip_provider_find_dialog(const belle_sip_provider_t *prov, const char* call_id, const char* local_tag, const char* remote_tag, bool_t local_tag_mandatory) {
 	belle_sip_list_t* iterator;
 	belle_sip_dialog_t*returned_dialog=NULL;
 
-	if (call_id == NULL || local_tag == NULL || remote_tag == NULL) {
+	if (call_id == NULL || (local_tag_mandatory && (local_tag == NULL)) || remote_tag == NULL) {
 		return NULL;
 	}
 
@@ -717,11 +724,20 @@ belle_sip_dialog_t* belle_sip_provider_find_dialog(const belle_sip_provider_t *p
 		if (belle_sip_dialog_get_state(dialog) != BELLE_SIP_DIALOG_NULL && _belle_sip_dialog_match(dialog,call_id,local_tag,remote_tag)) {
 			if (!returned_dialog)
 				returned_dialog=dialog;
-			else
+			else {
 				belle_sip_fatal("More than 1 dialog is matching, check your app");
+			}
 		}
 	}
 	return returned_dialog;
+}
+/*find a dialog given the call id, local-tag and to-tag*/
+belle_sip_dialog_t* belle_sip_provider_find_dialog(const belle_sip_provider_t *prov, const char* call_id, const char* local_tag, const char* remote_tag) {
+	return _belle_sip_provider_find_dialog(prov, call_id, local_tag, remote_tag, TRUE);
+}
+
+belle_sip_dialog_t* belle_sip_provider_find_dialog_with_remote_tag(const belle_sip_provider_t *prov, const char* call_id,const char* remote_tag) {
+	return _belle_sip_provider_find_dialog(prov, call_id, NULL, remote_tag, FALSE);
 }
 
 /*finds an existing dialog for an outgoing or incoming message */
@@ -1136,11 +1152,15 @@ static void  belle_sip_provider_update_or_create_auth_context(belle_sip_provider
 	belle_sip_list_t *auth_context_lst = NULL;
 	belle_sip_list_t *auth_context_it;
 	authorization_context_t *auth_context;
+	const char *algo = belle_sip_header_www_authenticate_get_algorithm(authenticate);
+	
+	if (belle_sip_stack_check_digest_compatibility(p->stack, authenticate) == -1) return;
 
 	for (auth_context_it = auth_context_lst = belle_sip_provider_get_auth_context_by_realm_or_call_id(p, call_id, from_uri, realm);
 	     auth_context_it != NULL; auth_context_it = auth_context_it->next) {
 		auth_context = (authorization_context_t *)auth_context_it->data;
-		if ((strcmp(auth_context->realm, belle_sip_header_www_authenticate_get_realm(authenticate)) == 0) && ((auth_context->algorithm == NULL) || strcasecmp(auth_context->algorithm, belle_sip_header_www_authenticate_get_algorithm(authenticate)) == 0))  {
+		if ((strcmp(auth_context->realm, belle_sip_header_www_authenticate_get_realm(authenticate)) == 0) && ((auth_context->algorithm == NULL) 
+			|| strcasecmp(auth_context->algorithm, algo) == 0))  {
 			authorization_context_fill_from_auth(auth_context, authenticate, from_uri);
 			goto end; /*only one realm is supposed to be found for now*/
 		}
@@ -1392,4 +1412,8 @@ void belle_sip_provider_enable_unconditional_answer(belle_sip_provider_t *prov, 
 
 void belle_sip_provider_set_unconditional_answer(belle_sip_provider_t *prov, unsigned short code) {
 	prov->unconditional_answer=code;
+}
+
+void belle_sip_provider_enable_response_integrity_checking(belle_sip_provider_t *prov, int value){
+	prov->response_integrity_checking_enabled = value;
 }

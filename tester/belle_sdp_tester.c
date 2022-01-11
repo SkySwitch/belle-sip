@@ -23,7 +23,7 @@
 
 
 //v=0
-//o=jehan-mac 1239 1239 IN IP4 192.168.0.18
+//o=jehan-mac 1239 1239 IN IP4 192.168.0.19
 //s=Talk
 //c=IN IP4 192.168.0.18
 //t=0 0
@@ -73,6 +73,60 @@ static void test_attribute_2(void) {
 	BC_ASSERT_STRING_EQUAL(belle_sdp_attribute_get_name(lAttribute), "alt");
 	BC_ASSERT_STRING_EQUAL(belle_sdp_attribute_get_value(lAttribute), "1 1 : e2br+9PL Eu1qGlQ9 10.211.55.3 8988");
 	BC_ASSERT_TRUE(belle_sdp_attribute_has_value(lAttribute));
+	belle_sip_object_unref(BELLE_SIP_OBJECT(lAttribute));
+}
+
+static void test_label_attribute(void) {
+	const char* line = "a=label:2";
+
+	belle_sdp_label_attribute_t* lAttribute;
+
+	lAttribute = belle_sdp_label_attribute_parse(line);
+	BC_ASSERT_STRING_EQUAL(belle_sdp_attribute_get_name(BELLE_SDP_ATTRIBUTE(lAttribute)), "label");
+	char * obj_string = belle_sip_object_to_string(BELLE_SIP_OBJECT(lAttribute));
+	BC_ASSERT_STRING_EQUAL(obj_string, line);
+	belle_sip_free(obj_string);
+
+	belle_sdp_label_attribute_t* clone = BELLE_SDP_LABEL_ATTRIBUTE(
+		belle_sip_object_clone(BELLE_SIP_OBJECT(lAttribute))
+	);
+	char * clone_obj_string = belle_sip_object_to_string(clone);
+	BC_ASSERT_STRING_EQUAL(clone_obj_string, line);
+	belle_sip_free(clone_obj_string);
+	belle_sip_object_unref(BELLE_SIP_OBJECT(clone));
+
+	BC_ASSERT_STRING_EQUAL(belle_sdp_label_attribute_get_pointer(lAttribute), "2");
+	belle_sip_object_unref(BELLE_SIP_OBJECT(lAttribute));
+}
+
+static void test_content_attribute(void) {
+	belle_sdp_content_attribute_t* lAttribute;
+	belle_sip_list_t* list;
+	int i = 0;
+	const char* fmt[] = {"slides","speaker","sl","main"};
+	const char* line = "a=content:slides,speaker,sl,main";
+
+	lAttribute = belle_sdp_content_attribute_parse(line);
+	char * obj_string = belle_sip_object_to_string(BELLE_SIP_OBJECT(lAttribute));
+	BC_ASSERT_STRING_EQUAL(obj_string, line);
+	belle_sip_free(obj_string);
+
+	belle_sdp_content_attribute_t* clone = BELLE_SDP_CONTENT_ATTRIBUTE(
+		belle_sip_object_clone(BELLE_SIP_OBJECT(lAttribute))
+	);
+	char * clone_obj_string = belle_sip_object_to_string(clone);
+	BC_ASSERT_STRING_EQUAL(clone_obj_string, line);
+	belle_sip_free(clone_obj_string);
+	belle_sip_object_unref(BELLE_SIP_OBJECT(clone));
+
+	BC_ASSERT_STRING_EQUAL(belle_sdp_attribute_get_name(BELLE_SDP_ATTRIBUTE(lAttribute)), "content");
+
+	list = belle_sdp_content_attribute_get_media_tags(lAttribute);
+	BC_ASSERT_PTR_NOT_NULL(list);
+	for(; list!=NULL; list=list->next){
+		BC_ASSERT_STRING_EQUAL(list->data, fmt[i++]);
+	}
+
 	belle_sip_object_unref(BELLE_SIP_OBJECT(lAttribute));
 }
 
@@ -171,7 +225,6 @@ static void test_tcap_attribute(void) {
 }
 
 static void test_acap_attribute_base(const char* line, int id, const char * name, const char * value) {
-
 	belle_sdp_acap_attribute_t* lAttribute;
 
 	lAttribute = belle_sdp_acap_attribute_parse(line);
@@ -521,7 +574,9 @@ static void test_media(void) {
 	belle_sip_free(l_raw_media);
 }
 
-const char* media_description_attr[] ={"98 nack rpsi"
+const char* media_description_attr[] ={"2"
+			,"speaker"
+			,"98 nack rpsi"
 			,"rcvr-rtt=all:10"
 			,"4 key-mgmt:mikey AQAFgM"
 			,"2147483647 key-mgmt:mikey YjKBgNn"
@@ -537,7 +592,9 @@ const char* media_description_attr[] ={"98 nack rpsi"
 			,"2 t=6 a=2147483647"
 			,"98 CIF=1;QCIF=1"};
 
-const char* media_description_attr_2[] ={"98 nack rpsi"
+const char* media_description_attr_2[] ={"2"
+			,"speaker"
+			,"98 nack rpsi"
 			,"2 t=6 a=2147483647"
 			,"rcvr-rtt=all:10"
 			,"4 key-mgmt:mikey AQAFgM"
@@ -593,6 +650,8 @@ static void test_media_description(void) {
 						"i=Hey\r\n"\
 						"c=IN IP4 192.168.0.18\r\n"\
 						"b=AS:380\r\n"\
+						"a=label:2\r\n"\
+						"a=content:speaker\r\n"\
 						"a=rtcp-fb:98 nack rpsi\r\n"\
 						"a=rtcp-xr:rcvr-rtt=all:10\r\n"\
 						"a=acap:4 key-mgmt:mikey AQAFgM\r\n"\
@@ -643,6 +702,8 @@ static void test_simple_session_description(void) {
 						"m=video 8078 RTP/AVP 99 97 98\r\n"\
 						"c=IN IP4 192.168.0.18\r\n"\
 						"b=AS:380\r\n"\
+						"a=label:2\r\n"\
+						"a=content:speaker\r\n"\
 						"a=rtcp-fb:98 nack rpsi\r\n"\
 						"a=rtcp-xr:rcvr-rtt=all:10\r\n"\
 						"a=acap:4 key-mgmt:mikey AQAFgM\r\n"\
@@ -686,8 +747,8 @@ static void test_simple_session_description(void) {
 
 	BC_ASSERT_PTR_NOT_NULL(belle_sdp_session_description_get_connection(l_session_description));
 	BC_ASSERT_PTR_NOT_NULL(belle_sdp_session_description_get_time_descriptions(l_session_description));
-	BC_ASSERT_EQUAL(belle_sdp_time_get_start(belle_sdp_time_description_get_time((belle_sdp_time_description_t*)(belle_sdp_session_description_get_time_descriptions(l_session_description)->data))),0, int, "%d");
-	BC_ASSERT_EQUAL(belle_sdp_time_get_stop(belle_sdp_time_description_get_time((belle_sdp_time_description_t*)(belle_sdp_session_description_get_time_descriptions(l_session_description)->data))),0, int, "%d");
+	BC_ASSERT_EQUAL(belle_sdp_time_get_start(belle_sdp_time_description_get_time((belle_sdp_time_description_t*)(belle_sdp_session_description_get_time_descriptions(l_session_description)->data))),0, long long, "%lld");
+	BC_ASSERT_EQUAL(belle_sdp_time_get_stop(belle_sdp_time_description_get_time((belle_sdp_time_description_t*)(belle_sdp_session_description_get_time_descriptions(l_session_description)->data))),0, long long, "%lld");
 
 	media_descriptions = belle_sdp_session_description_get_media_descriptions(l_session_description);
 	BC_ASSERT_PTR_NOT_NULL(media_descriptions);
@@ -705,7 +766,7 @@ static void test_simple_session_description(void) {
 
 static void test_session_description_with_capability_referenced_before_definition(void) {
 	const char* l_src = "v=0\r\n"\
-						"o=jehan-mac 2463217870 2463217870 IN IP4 192.168.0.18\r\n"\
+						"o=jehan-mac 2463217870 2463217870 IN IP4 192.168.0.19\r\n"\
 						"s=Talk\r\n"\
 						"c=IN IP4 192.168.0.18\r\n"\
 						"t=0 0\r\n"\
@@ -724,6 +785,8 @@ static void test_session_description_with_capability_referenced_before_definitio
 						"m=video 8078 RTP/AVP 99 97 98\r\n"\
 						"c=IN IP4 192.168.0.18\r\n"\
 						"b=AS:380\r\n"\
+						"a=label:2\r\n"\
+						"a=content:speaker\r\n"\
 						"a=rtcp-fb:98 nack rpsi\r\n"\
 						"a=acfg:2 t=6 a=2147483647\r\n"\
 						"a=rtcp-xr:rcvr-rtt=all:10\r\n"\
@@ -757,7 +820,7 @@ static void test_session_description_with_capability_referenced_before_definitio
 
 	l_origin = belle_sdp_session_description_get_origin(l_session_description);
 	BC_ASSERT_PTR_NOT_NULL(l_origin);
-	BC_ASSERT_STRING_EQUAL(belle_sdp_origin_get_address(l_origin),"192.168.0.18");
+	BC_ASSERT_STRING_EQUAL(belle_sdp_origin_get_address(l_origin),"192.168.0.19");
 	BC_ASSERT_STRING_EQUAL(belle_sdp_origin_get_address_type(l_origin),"IP4");
 	BC_ASSERT_STRING_EQUAL(belle_sdp_origin_get_network_type(l_origin),"IN");
 	BC_ASSERT_EQUAL(belle_sdp_origin_get_session_id(l_origin), 2463217870U, unsigned, "%u");
@@ -768,8 +831,8 @@ static void test_session_description_with_capability_referenced_before_definitio
 
 	BC_ASSERT_PTR_NOT_NULL(belle_sdp_session_description_get_connection(l_session_description));
 	BC_ASSERT_PTR_NOT_NULL(belle_sdp_session_description_get_time_descriptions(l_session_description));
-	BC_ASSERT_EQUAL(belle_sdp_time_get_start(belle_sdp_time_description_get_time((belle_sdp_time_description_t*)(belle_sdp_session_description_get_time_descriptions(l_session_description)->data))),0, int, "%d");
-	BC_ASSERT_EQUAL(belle_sdp_time_get_stop(belle_sdp_time_description_get_time((belle_sdp_time_description_t*)(belle_sdp_session_description_get_time_descriptions(l_session_description)->data))),0, int, "%d");
+	BC_ASSERT_EQUAL(belle_sdp_time_get_start(belle_sdp_time_description_get_time((belle_sdp_time_description_t*)(belle_sdp_session_description_get_time_descriptions(l_session_description)->data))),0, long long, "%lld");
+	BC_ASSERT_EQUAL(belle_sdp_time_get_stop(belle_sdp_time_description_get_time((belle_sdp_time_description_t*)(belle_sdp_session_description_get_time_descriptions(l_session_description)->data))),0, long long, "%lld");
 
 	media_descriptions = belle_sdp_session_description_get_media_descriptions(l_session_description);
 	BC_ASSERT_PTR_NOT_NULL(media_descriptions);
@@ -824,6 +887,8 @@ static const char* big_sdp = "v=0\r\n"\
 						"m=video 8078 RTP/AVP 99 97 98\r\n"\
 						"c=IN IP4 192.168.0.18\r\n"\
 						"b=AS:380\r\n"\
+						"a=label:2\r\n"\
+						"a=content:speaker\r\n"\
 						"a=rtcp-fb:98 nack rpsi\r\n"\
 						"a=rtcp-xr:rcvr-rtt=all:10\r\n"\
 						"a=acap:4 key-mgmt:mikey AQAFgM\r\n"\
@@ -869,10 +934,10 @@ static void test_session_description(void) {
 
 	BC_ASSERT_PTR_NOT_NULL(belle_sdp_session_description_get_connection(l_session_description));
 	BC_ASSERT_EQUAL(belle_sdp_session_description_get_bandwidth(l_session_description,"AS"), 380, int, "%d");
-	
+
 	BC_ASSERT_PTR_NOT_NULL(belle_sdp_session_description_get_time_descriptions(l_session_description));
-	BC_ASSERT_EQUAL(belle_sdp_time_get_start(belle_sdp_time_description_get_time((belle_sdp_time_description_t*)(belle_sdp_session_description_get_time_descriptions(l_session_description)->data))),0, int, "%d");
-	BC_ASSERT_EQUAL(belle_sdp_time_get_stop(belle_sdp_time_description_get_time((belle_sdp_time_description_t*)(belle_sdp_session_description_get_time_descriptions(l_session_description)->data))),0, int, "%d");
+	BC_ASSERT_EQUAL(belle_sdp_time_get_start(belle_sdp_time_description_get_time((belle_sdp_time_description_t*)(belle_sdp_session_description_get_time_descriptions(l_session_description)->data))),0, long long, "%lld");
+	BC_ASSERT_EQUAL(belle_sdp_time_get_stop(belle_sdp_time_description_get_time((belle_sdp_time_description_t*)(belle_sdp_session_description_get_time_descriptions(l_session_description)->data))),0, long long, "%lld");
 
 	media_descriptions = belle_sdp_session_description_get_media_descriptions(l_session_description);
 	BC_ASSERT_PTR_NOT_NULL(media_descriptions);
@@ -1042,6 +1107,8 @@ test_t sdp_tests[] = {
 	TEST_NO_TAG("a= (attribute)", test_attribute),
 	TEST_NO_TAG("a= (attribute) 2", test_attribute_2),
 	TEST_NO_TAG("a=rtcp-xr", test_rtcp_xr_attribute),
+	TEST_NO_TAG("a= (label)", test_label_attribute),
+	TEST_NO_TAG("a= (content)", test_content_attribute),
 	TEST_NO_TAG("a= (csup)", test_csup_attribute),
 	TEST_NO_TAG("a= (creq)", test_creq_attribute),
 	TEST_NO_TAG("a= (tcap)", test_tcap_attribute),

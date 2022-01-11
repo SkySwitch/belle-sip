@@ -462,12 +462,6 @@ static belle_sip_request_t *belle_sip_dialog_create_prack(belle_sip_dialog_t *di
 		belle_sip_uri_set_user(belle_sip_header_address_get_uri((belle_sip_header_address_t*)contact_header),belle_sip_uri_get_user(req_uri));
 		belle_sip_message_add_header(BELLE_SIP_MESSAGE(prack),BELLE_SIP_HEADER(contact_header));
 
-		const belle_sip_list_t *aut = belle_sip_message_get_headers((belle_sip_message_t*)invite, "Authorization");
-		const belle_sip_list_t *prx_aut = belle_sip_message_get_headers((belle_sip_message_t*)invite, "Proxy-Authorization");
-		if (aut)
-			belle_sip_message_add_headers((belle_sip_message_t*)prack, aut);
-		if (prx_aut)
-			belle_sip_message_add_headers((belle_sip_message_t*)prack, prx_aut);
 	}
 
 	return prack;
@@ -517,6 +511,8 @@ static int belle_sip_dialog_process_response_100rel(belle_sip_dialog_t *obj, bel
 					/*send PRACK from callee */
 					belle_sip_request_t *prack = belle_sip_dialog_create_prack(obj, rseq, cseq_resp, method_resp);
 					if (prack){
+						/*put auth header*/
+						belle_sip_provider_add_authorization(transaction->provider,prack,transaction->last_response,NULL,NULL,NULL);
 						belle_sip_dialog_send_prack(obj, prack);
 						ict->r_cseq = rseq;
 					} else {
@@ -545,6 +541,7 @@ int belle_sip_dialog_update(belle_sip_dialog_t *obj, belle_sip_transaction_t* tr
 	int is_invite = strcmp(belle_sip_request_get_method(req),"INVITE")==0;
 	int is_subscribe = strcmp(belle_sip_request_get_method(req),"SUBSCRIBE")==0;
 	int is_notify = strcmp(belle_sip_request_get_method(req),"NOTIFY")==0;
+	belle_sip_transaction_t *previous_transaction = NULL;
 
 	belle_sip_message("Dialog [%p]: now updated by transaction [%p].",obj, transaction);
 
@@ -555,7 +552,9 @@ int belle_sip_dialog_update(belle_sip_dialog_t *obj, belle_sip_transaction_t* tr
 		belle_sip_message("Dialog [%p]: don't update last transaction by transaction [%p].",obj, transaction);
 	} else {
 		belle_sip_object_ref(transaction);
-		if (obj->last_transaction) belle_sip_object_unref(obj->last_transaction);
+		if (obj->last_transaction) {
+			previous_transaction = obj->last_transaction;
+		}
 		obj->last_transaction=transaction;
 	}
 	if (!as_uas){
@@ -652,7 +651,8 @@ int belle_sip_dialog_update(belle_sip_dialog_t *obj, belle_sip_transaction_t* tr
 				if (code>=200 && code<300){
 					/*handle possible retransmission of 200Ok */
 					if (!as_uas && (is_retransmition=(belle_sip_dialog_handle_200Ok(obj,resp)==0))) {
-						return is_retransmition;
+						ret = 1;
+						goto end;
 					} else {
 						if (as_uas)
 							belle_sip_dialog_init_200Ok_retrans(obj,resp);
@@ -681,6 +681,15 @@ int belle_sip_dialog_update(belle_sip_dialog_t *obj, belle_sip_transaction_t* tr
 				if (code>=200 || (code==0 && belle_sip_transaction_get_state(transaction)==BELLE_SIP_TRANSACTION_TERMINATED)){
 					obj->needs_ack=FALSE; /*no longuer need ACK*/
 					if (obj->terminate_on_bye) delete_dialog=TRUE;
+				}else if (!as_uas && code == 0){
+					/* A client BYE transaction is being started */
+					if (previous_transaction && belle_sip_transaction_get_state(previous_transaction) != BELLE_SIP_TRANSACTION_TERMINATED){
+						belle_sip_warning("Forcibly terminating previous transaction as BYE is being sent.");
+						/* Detach the dialog from the transaction, so that the dialog does not get updated for nothing
+						 * by the killed transaction. */
+						belle_sip_transaction_set_dialog(previous_transaction, NULL);
+						belle_sip_transaction_terminate(previous_transaction);
+					}
 				}
 			}else if (is_subscribe){
 				if (belle_sip_dialog_schedule_expiration(obj, (belle_sip_message_t*)req) == BELLE_SIP_STOP
@@ -705,6 +714,7 @@ int belle_sip_dialog_update(belle_sip_dialog_t *obj, belle_sip_transaction_t* tr
 	}
 
 end:
+	if (previous_transaction) belle_sip_object_unref(previous_transaction);
 	if (delete_dialog) belle_sip_dialog_delete(obj);
 	else {
 		belle_sip_dialog_process_queue(obj);
@@ -1119,7 +1129,7 @@ int _belle_sip_dialog_match(belle_sip_dialog_t *obj, const char *call_id, const 
 	/*Dialog created by notify matching subscription are still in NULL state if (obj->state==BELLE_SIP_DIALOG_NULL) belle_sip_fatal("_belle_sip_dialog_match() must not be used for dialog in null state.");*/
 	dcid=belle_sip_header_call_id_get_call_id(obj->call_id);
 	return strcmp(dcid,call_id)==0
-		&& strcmp(obj->local_tag,local_tag)==0
+		&& (!local_tag || strcmp(obj->local_tag,local_tag)==0) //local tag is not checked if not provided
 		&& obj->remote_tag /* handle 180 without to tag */ && remote_tag && strcmp(obj->remote_tag,remote_tag)==0;
 }
 
@@ -1179,6 +1189,16 @@ belle_sip_transaction_t* belle_sip_dialog_get_last_transaction(const belle_sip_d
 int belle_sip_dialog_request_pending(const belle_sip_dialog_t *dialog){
 	return dialog->needs_ack || (dialog->last_transaction ? belle_sip_transaction_state_is_transient(belle_sip_transaction_get_state(dialog->last_transaction)) : FALSE);
 }
+
+int belle_sip_dialog_get_request_retry_timeout(const belle_sip_dialog_t *dialog){
+	/* According to RFC3261 - 14.1 */
+	if (!dialog->is_server){
+		return 2100 + 10 * (((belle_sip_random() % (4000 - 2100))) / 10 );
+	}else{
+		return 10 * ((belle_sip_random() % 2000) / 10 );
+	}
+}
+
 
 /* for notify exception
 As per RFC 3265;

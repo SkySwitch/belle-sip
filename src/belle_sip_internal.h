@@ -72,7 +72,7 @@
 #include "dispatch/dispatch.h"
 #endif /* HAVE_DNS_SERVICE */
 
-
+#define SOCKET_NOT_SET ((belle_sip_socket_t)-1)
 /*etc*/
 
 #define BELLE_SIP_INTERFACE_GET_METHODS(obj,interface) \
@@ -207,6 +207,8 @@ BELLE_SIP_DECLARE_VPTR(belle_sdp_raw_attribute_t);
 BELLE_SIP_DECLARE_VPTR(belle_sdp_repeate_time_t);
 BELLE_SIP_DECLARE_VPTR(belle_sdp_rtcp_fb_attribute_t);
 BELLE_SIP_DECLARE_VPTR(belle_sdp_rtcp_xr_attribute_t);
+BELLE_SIP_DECLARE_VPTR(belle_sdp_content_attribute_t);
+BELLE_SIP_DECLARE_VPTR(belle_sdp_label_attribute_t);
 BELLE_SIP_DECLARE_VPTR(belle_sdp_creq_attribute_t);
 BELLE_SIP_DECLARE_VPTR(belle_sdp_csup_attribute_t);
 BELLE_SIP_DECLARE_VPTR(belle_sdp_tcap_attribute_t);
@@ -257,7 +259,7 @@ BELLE_SIP_DECLARE_VPTR(belle_sip_mdns_source_t);
 BELLE_SIP_DECLARE_VPTR(belle_sip_mdns_register_t);
 #endif
 BELLE_SIP_DECLARE_VPTR(belle_sip_resolver_results_t);
-
+BELLE_SIP_DECLARE_VPTR(belle_sip_digest_authentication_policy_t);
 
 BELLE_SIP_DECLARE_CUSTOM_VPTR_BEGIN(belle_sip_resolver_context_t,belle_sip_source_t)
 	void (*cancel)(belle_sip_resolver_context_t *);
@@ -571,6 +573,7 @@ struct belle_sip_stack{
 	int http_proxy_port;
 	char *http_proxy_username; /*for future use*/
 	char *http_proxy_passwd; /*for future use*/
+	belle_sip_digest_authentication_policy_t *digest_auth_policy;
 
 	unsigned char dns_srv_enabled;
 	unsigned char dns_search_enabled;
@@ -587,6 +590,8 @@ BELLESIP_EXPORT belle_sip_hop_t* belle_sip_hop_new_from_uri(const belle_sip_uri_
 BELLESIP_EXPORT belle_sip_hop_t* belle_sip_hop_new_from_generic_uri(const belle_generic_uri_t *uri);
 
 BELLESIP_EXPORT belle_sip_hop_t * belle_sip_stack_get_next_hop(belle_sip_stack_t *stack, belle_sip_request_t *req);
+/* Return -1 if requested authentication is not compatible with local digest authentication security policy, 0 if compatible. */
+BELLESIP_EXPORT int belle_sip_stack_check_digest_compatibility(const belle_sip_stack_t *stack, const belle_sip_header_www_authenticate_t *authenticate);
 
 /*
  belle_sip_provider_t
@@ -606,6 +611,7 @@ struct belle_sip_provider{
 	unsigned char rport_enabled; /*0 if rport should not be set in via header*/
 	unsigned char nat_helper;
 	unsigned char unconditional_answer_enabled;
+	unsigned char response_integrity_checking_enabled;
 };
 
 BELLESIP_EXPORT belle_sip_provider_t *belle_sip_provider_new(belle_sip_stack_t *s, belle_sip_listening_point_t *lp);
@@ -1128,15 +1134,6 @@ void belle_sip_multipart_body_handler_progress_cb(belle_sip_body_handler_t *obj,
 /**
  * file manipulation
  */
-/**
- * Parse a directory and return all files in it.
- *
- * @param[in]	path		The directory to be parsed
- * @param[in]	file_type	if not NULL return only the file with the given extension, must include the '.', ex:".pem"
- * @return		a belle_sip list containing all found file or NULL if no file were found or directory doesn't exist. List must be destroyed using belle_sip_list_free_with_data(<ret_list>, belle_sip_free)
- */
-belle_sip_list_t *belle_sip_parse_directory(const char *path, const char *file_type);
-
 typedef struct authorization_context authorization_context_t;
 typedef authorization_context_t belle_sip_authorization_t;
 
